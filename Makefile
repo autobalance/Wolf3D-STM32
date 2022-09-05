@@ -42,18 +42,18 @@ else
   LDFLAGS += -TSTM32H743XI.ld
 endif
 
-.PHONY: all debug_build build output info size flash clean
+.PHONY: all build_debug build output info size flash flash_debug debug clean
 
 all: build size
 
 build: CFLAGS += $(OPTFLAGS)
 build: $(TARGET).elf
 
-debug_build: CFLAGS += -fstack-usage -ggdb3
-#debug_build: CFLAGS += -finstrument-functions
-#debug_build: CFLAGS += -finstrument-functions-exclude-file-list=$(SRC_DIR)/cmsis/,$(SRC_DIR)/main.c,$(SRC_DIR)/syscalls.c,$(SRC_DIR)/systick.c
-debug_build: LDFLAGS += -Xlinker -Map=$(TARGET).map
-debug_build: $(TARGET).elf
+build_debug: CFLAGS += -fstack-usage -ggdb3 $(OPTFLAGS)
+#build_debug: CFLAGS += -finstrument-functions
+#build_debug: CFLAGS += -finstrument-functions-exclude-file-list=$(SRC_DIR)/cmsis/,$(SRC_DIR)/main.c,$(SRC_DIR)/syscalls.c,$(SRC_DIR)/systick.c
+build_debug: LDFLAGS += -Xlinker -Map=$(TARGET).map
+build_debug: $(TARGET).elf
 	$(OBJDUMP) -x -S $(TARGET).elf > $(TARGET).lst
 	$(OBJDUMP) -D $(TARGET).elf > $(TARGET).dis
 	$(SIZE) $(TARGET).elf > $(TARGET).size
@@ -75,7 +75,10 @@ size: $(TARGET).elf
 flash: build
 	$(DEBUGGER) -f $(OOCDCNF) -c "program $(TARGET).elf verify reset exit"
 
-debug: debug_build
+flash_debug: build_debug
+	$(DEBUGGER) -f $(OOCDCNF) -c "program $(TARGET).elf verify reset exit"
+
+debug: build_debug flash_debug
 	$(DEBUGGER) -f $(OOCDCNF) &
 	$(GDB) $(TARGET).elf -ex "target remote localhost:3333" -ex "monitor reset halt"
 
