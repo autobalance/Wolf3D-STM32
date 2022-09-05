@@ -793,7 +793,9 @@ SD_Startup(void)
 
     //Mix_HookMusic(SDL_IMFMusicPlayer, 0);
     //Mix_ChannelFinished(SD_ChannelFinished);
-    AdLibPresent = true;
+
+    // TODO: implement AdLib support for music
+    AdLibPresent = false;
     SoundBlasterPresent = true;
 
     alTimeCount = 0;
