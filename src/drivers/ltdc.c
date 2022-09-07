@@ -111,8 +111,8 @@ void ltdc_setup(void)
     LTDC->AWCR = ((AW_HORI - 1) << LTDC_AWCR_AAW_Pos)    | ((AW_VERT - 1) << LTDC_AWCR_AAH_Pos);
     LTDC->TWCR = ((TW_HORI - 1) << LTDC_TWCR_TOTALW_Pos) | ((TW_VERT - 1) << LTDC_TWCR_TOTALH_Pos);
 
-    // active low horizontal and vertical sync
-    LTDC->GCR = (0 << LTDC_GCR_HSPOL_Pos) | (0 << LTDC_GCR_VSPOL_Pos);
+    // active low horizontal sync and active high vertical sync
+    LTDC->GCR = (0 << LTDC_GCR_HSPOL_Pos) | (1 << LTDC_GCR_VSPOL_Pos);
 
     LTDC_Layer1->WHPCR = ((WHP_START) << LTDC_LxWHPCR_WHSTPOS_Pos) | ((WHP_STOP - 1) << LTDC_LxWHPCR_WHSPPOS_Pos);
     LTDC_Layer1->WVPCR = ((WVP_START) << LTDC_LxWVPCR_WVSTPOS_Pos) | ((WVP_STOP - 1) << LTDC_LxWVPCR_WVSPPOS_Pos);
