@@ -80,9 +80,8 @@ void    VL_Shutdown (void)
 
 extern uint8_t framebuf[200][320];
 
-//__attribute__ ((section(".RAM_D3")))
-//uint8_t screenbuf[200][320];
 uint8_t *screenbuf = (uint8_t *) 0x00000000;
+//__attribute__ ((section(".itcmram"))) uint8_t *screenbuf;
 
 void    VL_SetVGAPlaneMode (void)
 {

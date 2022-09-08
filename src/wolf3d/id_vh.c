@@ -128,14 +128,16 @@ void VH_UpdateScreen()
     ltdc_set_clut((uint8_t *) curpal);
 
     // copy back buffer to front for LTDC to draw
-    //memcpy(screen->pixels.u8, screenBuffer->pixels.u8, screen->width * screen->height);
-    for (int i = 0; i < screen->width; i++){
-    #pragma GCC unroll 8
-    for (int j = 0; j < screen->height; j++)
+    for (int line = 0; line < screen->height; line++)
     {
-        *(screen->pixels.u8 + i + (2*j)*screen->width) = *(screenBuffer->pixels.u8 + i + j*screen->width);
-        *(screen->pixels.u8 + i + (2*j+1)*screen->width) = *(screenBuffer->pixels.u8 + i + j*screen->width);
-    }}
+        memcpy(screen->pixels.u8 + (2*line)*screen->width,
+               screenBuffer->pixels.u8 + line*screen->width,
+               screen->width);
+
+        memcpy(screen->pixels.u8 + (2*line+1)*screen->width,
+               screenBuffer->pixels.u8 + line*screen->width,
+               screen->width);
+    }
 
     // commit data cache to SRAM, similar to what needs to be done for proper DMA access
     // see: https://community.st.com/s/article/FAQ-DMA-is-not-working-on-STM32H7-devices
