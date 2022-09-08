@@ -162,6 +162,8 @@ int SD_GetChannelForDigi(int which)
     return 0;
 }
 
+volatile int snd_scale = 0;
+
 void SD_SetPosition(int channel, int leftpos, int rightpos)
 {
     if((leftpos < 0) || (leftpos > 15) || (rightpos < 0) || (rightpos > 15)
@@ -172,6 +174,7 @@ void SD_SetPosition(int channel, int leftpos, int rightpos)
     {
         case sds_SoundBlaster:
 //            SDL_PositionSBP(leftpos,rightpos);
+            snd_scale = (leftpos + rightpos) / 2 + 1;
             //Mix_SetPanning(channel, ((15 - leftpos) << 4) + 15,
             //    ((15 - rightpos) << 4) + 15);
             break;
@@ -248,7 +251,6 @@ int snd_size = 0;
 int snd_page = 0;
 int sndpagebufpos = 0;
 int snd_playing = 0;
-uint8_t snd_scale = 0;
 
 void DMA1_Stream1_IRQHandler(void)
 {
@@ -310,7 +312,6 @@ int SD_PlayDigitized(word which,int leftpos,int rightpos)
         size -= 4096;
     }
     sndpagebufpos = 0;
-    snd_scale = (leftpos + rightpos) / 2 + 1;
     snd_playing = 1;
 
 
