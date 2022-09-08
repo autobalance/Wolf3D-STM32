@@ -1,3 +1,5 @@
 *.o
 *.elf
 build/*
+src/wolf3d/wl6/*
+*.wl6

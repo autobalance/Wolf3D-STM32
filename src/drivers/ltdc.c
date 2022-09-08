@@ -1,6 +1,6 @@
 #include <ltdc.h>
 
-uint8_t framebuf[FRAMEBUF_HEIGHT][FRAMEBUF_WIDTH];
+uint8_t framebuf[FRAMEBUF_HEIGHT*2][FRAMEBUF_WIDTH];
 
 /*
     RGB565 output:
@@ -125,7 +125,7 @@ void ltdc_setup(void)
     // each pixel in the screen buffer will be 8-bits corresponding to table lookup, so set pitch accordingly
     LTDC_Layer1->CFBLR = ((FRAMEBUF_WIDTH) << LTDC_LxCFBLR_CFBP_Pos) |
                          ((FRAMEBUF_WIDTH + 7) << LTDC_LxCFBLR_CFBLL_Pos);
-    LTDC_Layer1->CFBLNR = FRAMEBUF_HEIGHT << LTDC_LxCFBLNR_CFBLNBR_Pos;
+    LTDC_Layer1->CFBLNR = (FRAMEBUF_HEIGHT*2) << LTDC_LxCFBLNR_CFBLNBR_Pos;
 
     LTDC_Layer1->CR = LTDC_LxCR_CLUTEN | LTDC_LxCR_LEN;
 

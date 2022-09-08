@@ -28,10 +28,10 @@
 #define HORI_FRONT_PORCH  (16/2)
 
 // line counts
-#define VERT_SYNC_PULSE   (2/2)
-#define VERT_BACK_PORCH   (33/2)
-#define VERT_VISIBLE_AREA (480/2)
-#define VERT_FRONT_PORCH  (10/2)
+#define VERT_SYNC_PULSE   (2)
+#define VERT_BACK_PORCH   (35)
+#define VERT_VISIBLE_AREA (400)
+#define VERT_FRONT_PORCH  (12)
 
 
 // constants for the LTDC configuration registers, noting the successive registers
@@ -64,7 +64,7 @@
 
 // window vertical position
 #define WVP_START (VERT_SYNC_PULSE + VERT_BACK_PORCH)
-#define WVP_STOP  (WVP_START + FRAMEBUF_HEIGHT)
+#define WVP_STOP  (WVP_START + (FRAMEBUF_HEIGHT*2))
 
 /*
     RGB565 output:
