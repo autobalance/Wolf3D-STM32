@@ -1,8 +1,11 @@
 #include "wl_def.h"
 
-int ChunksInFile;
-int PMSpriteStart;
-int PMSoundStart;
+extern const uint32_t VSWAP_LEN;
+extern const byte vswap[];
+
+word ChunksInFile;
+word PMSpriteStart;
+word PMSoundStart;
 
 bool PMSoundInfoPagePadded = false;
 
@@ -15,46 +18,26 @@ bool PMSoundInfoPagePadded = false;
 //uint8_t **PMPages;
 
 //uint8_t *PMPage;
-uint32_t* pageOffsets;
+longword *pageOffsets;
 word *pageLengths;
-
-PMPage PMPages[MAX_PAGES_IN_MEM];
-PMPage *mru, *lru;
-PMPage **page_lut;
-
-FILE *vswap_file;
 
 void PM_Startup()
 {
-    char fname[13] = "vswap.";
-    strcat(fname,extension);
+    word *w_vswap = (word *) vswap;
 
-    vswap_file = fopen(fname, "rb");
-    if(!vswap_file)
-        CA_CannotOpen(fname);
+    ChunksInFile = *w_vswap++;
+    PMSpriteStart = *w_vswap++;
+    PMSoundStart = *w_vswap++;
 
-    ChunksInFile = 0;
-    fread(&ChunksInFile, sizeof(word), 1, vswap_file);
-    PMSpriteStart = 0;
-    fread(&PMSpriteStart, sizeof(word), 1, vswap_file);
-    PMSoundStart = 0;
-    fread(&PMSoundStart, sizeof(word), 1, vswap_file);
+    pageOffsets = (longword *) w_vswap;
+    w_vswap += (sizeof(longword) / sizeof(word)) * ChunksInFile;
 
-    pageOffsets = (uint32_t *) malloc((ChunksInFile + 1) * sizeof(int32_t));
-    CHECKMALLOCRESULT(pageOffsets);
-    fread(pageOffsets, sizeof(uint32_t), ChunksInFile, vswap_file);
+    pageLengths = w_vswap;
 
-    pageLengths = (word *) malloc(ChunksInFile * sizeof(word));
-    CHECKMALLOCRESULT(pageLengths);
-    fread(pageLengths, sizeof(word), ChunksInFile, vswap_file);
-
-    fseek(vswap_file, 0, SEEK_END);
-    long fileSize = ftell(vswap_file);
+    long fileSize = VSWAP_LEN;
     long pageDataSize = fileSize - pageOffsets[0];
     if(pageDataSize > (size_t) -1)
-        Quit("The page file \"%s\" is too large!", fname);
-
-    pageOffsets[ChunksInFile] = fileSize;
+        Quit("The page file \"%s\" is too large!", "vswap.wl6");
 
     uint32_t dataStart = pageOffsets[0];
     int i;
@@ -80,23 +63,6 @@ void PM_Startup()
 
     if((pageOffsets[ChunksInFile - 1] - dataStart + alignPadding) & 1)
         alignPadding++;
-
-    for (int i = 0; i < MAX_PAGES_IN_MEM; i++)
-    {
-        PMPages[i].page = -1;
-        PMPages[i].p_page = NULL;
-        PMPages[i].p_prev = &PMPages[(i + MAX_PAGES_IN_MEM - 1) % MAX_PAGES_IN_MEM];
-        PMPages[i].p_next = &PMPages[(i + 1) % MAX_PAGES_IN_MEM];
-    }
-
-    mru = &PMPages[0];
-    lru = &PMPages[MAX_PAGES_IN_MEM-1];
-
-    page_lut = (PMPage **) malloc(ChunksInFile * sizeof(PMPage *));
-    CHECKMALLOCRESULT(page_lut);
-
-    for (int i = 0; i < ChunksInFile; i++)
-        page_lut[i] = NULL;
 
     /*PMPageDataSize = (size_t) pageDataSize + alignPadding;
     PMPageData = (uint32_t *) malloc(PMPageDataSize);
@@ -147,9 +113,8 @@ void PM_Startup()
 
 void PM_Shutdown()
 {
-    free(pageLengths);
-    free(pageOffsets);
-    fclose(vswap_file);
+    //free(pageLengths);
+    //free(pageOffsets);
     //free(PMPages);
     //free(PMPageData);
 }
