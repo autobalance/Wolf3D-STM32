@@ -419,10 +419,8 @@ boolean FizzleFade (scrsurf *source, int x1, int y1,
                 //
 
                 byte col = *(srcptr + (y1 + y) * source->pitch + x1 + x);
-                uint32_t fullcol = (uint32_t) curpal[col].r << 16 |
-                                   (uint32_t) curpal[col].g << 8  |
-                                   (uint32_t) curpal[col].b << 0;
-                screen->pixels.u8[(y1 + y) * screen->pitch + (x1 + x)] = col;
+                destptr[(2*(y1 + y)) * screen->pitch + (x1 + x)] = col;
+                destptr[(2*(y1 + y) + 1) * screen->pitch + (x1 + x)] = col;
 
                 if(rndval == 0)     // entire sequence has been completed
                     goto finished;
@@ -441,7 +439,7 @@ boolean FizzleFade (scrsurf *source, int x1, int y1,
     } while (1);
 
 finished:
-    SCB_CleanDCache_by_Addr((uint32_t*)(((uint32_t)screen->pixels.u8) & ~(uint32_t)0x1F), screen->width * screen->height + 32);
+    SCB_CleanDCache_by_Addr((uint32_t*)(((uint32_t)screen->pixels.u8) & ~(uint32_t)0x1F), screen->width * (2*screen->height) + 32);
     while (!(LTDC->CDSR & LTDC_CDSR_VSYNCS));
     return false;
 }
