@@ -916,7 +916,7 @@ SD_PlaySound(soundnames sound)
             SoundPositioned = ispos;
             DigiNumber = sound;
             DigiPriority = s->priority;
-            return channel + 1;
+            return channel >= 0;
         }
 
         return(true);
