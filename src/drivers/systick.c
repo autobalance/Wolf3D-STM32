@@ -10,7 +10,9 @@ void SysTick_Handler(void)
 void systick_setup(void)
 {
     NVIC_EnableIRQ(SysTick_IRQn);
-    SysTick_Config(SystemCoreClock / 1000); // ticks at 1000Hz (1ms/tick)
+
+    // ticks at 1000Hz (1ms/tick), see '19.1.1 SysTick calibration value register'
+    SysTick_Config((SystemCoreClock / 1000000) * SysTick->CALIB);
 }
 
 // crude delay function, allows interrupts to be serviced while waiting
