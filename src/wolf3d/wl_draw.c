@@ -1017,7 +1017,7 @@ void DrawPlayerWeapon (void)
     }
 #endif
 
-    if (gamestate.weapon != -1)
+    if (gamestate.weapon != wp_none)
     {
         shapenum = weaponscale[gamestate.weapon]+gamestate.weaponframe;
         SimpleScaleShape(viewwidth/2,shapenum,viewheight+1);
@@ -1551,7 +1551,7 @@ void    ThreeDRefresh (void)
 
     DrawPlayerWeapon ();    // draw player's hands
 
-    if(Keyboard[sc_Tab] && viewsize == 21 && gamestate.weapon != -1)
+    if(Keyboard[sc_Tab] && viewsize == 21 && gamestate.weapon != wp_none)
         ShowActStatus();
 
     vbuf = NULL;
