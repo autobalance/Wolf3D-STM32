@@ -8,6 +8,9 @@
 
 #include <stm32h7xx.h>
 
+#define DAC_BUF_LEN 256
+
+void dac_start(void);
 void dac_audio_setup(void);
 
 #endif

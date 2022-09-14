@@ -109,6 +109,15 @@ static  int                     sqHackLen;
 static  int                     sqHackSeqLen;
 static  longword                sqHackTime;
 
+// TODO: Get multiple channels of digi-sounds working
+//       (a BusFault incurs somewhat randomly if we use more than 1 right now)
+#define N_DIGICHANS 1
+
+volatile uint8_t *DigiChan_PagePtr[N_DIGICHANS];
+volatile int DigiChan_Size[N_DIGICHANS];
+volatile int DigiChan_PosScale[N_DIGICHANS];
+volatile int DigiChan_Playing[N_DIGICHANS];
+
 uint32_t GetTicks()
 {
     return (uint32_t) get_ticks_ms();
@@ -125,8 +134,6 @@ static void SDL_SoundFinished(void)
     SoundNumber   = (soundnames)0;
     SoundPriority = 0;
 }
-
-
 
 void
 SD_StopDigitized(void)
@@ -145,24 +152,28 @@ SD_StopDigitized(void)
             break;
         case sds_SoundBlaster:
 //            SDL_SBStopSampleInIRQ();
-            //Mix_HaltChannel(-1);
+            for (int ch = 0; ch < N_DIGICHANS; ch++)
+            {
+                DigiChan_Playing[ch] = 0;
+            }
             break;
     }
 }
 
+// TODO: Get multiple channels of digi-sounds working
+//       (a BusFault incurs somewhat randomly if we use more than 1 right now)
 int SD_GetChannelForDigi(int which)
 {
-    if(DigiChannel[which] != -1) return DigiChannel[which];
+    // channel 0 and 1 are reserved for player weapon and boss weapon, respectively
+    /*if(DigiChannel[which] != -1) return DigiChannel[which];
 
-    //int channel = Mix_GroupAvailable(1);
-    //if(channel == -1) channel = Mix_GroupOldest(1);
-    //if(channel == -1)           // All sounds stopped in the meantime?
-    //    return Mix_GroupAvailable(1);
-    //return channel;
+    int DigiChan_OpenSlot = 1;
+    while (++DigiChan_OpenSlot < N_DIGICHANS && DigiChan_Playing[DigiChan_OpenSlot]);
+
+    return DigiChan_OpenSlot;*/
+
     return 0;
 }
-
-volatile int snd_scale = 0;
 
 void SD_SetPosition(int channel, int leftpos, int rightpos)
 {
@@ -173,29 +184,10 @@ void SD_SetPosition(int channel, int leftpos, int rightpos)
     switch (DigiMode)
     {
         case sds_SoundBlaster:
-//            SDL_PositionSBP(leftpos,rightpos);
-            snd_scale = (leftpos + rightpos) / 2 + 1;
-            //Mix_SetPanning(channel, ((15 - leftpos) << 4) + 15,
-            //    ((15 - rightpos) << 4) + 15);
+            // not quite logarithmic volume scaling (divide by 4), but good enough
+            DigiChan_PosScale[channel] = (leftpos + rightpos) / 2 / 4 + 1;
             break;
     }
-}
-
-int16_t GetSample(float csample, byte *samples, int size)
-{
-    float s0=0, s1=0, s2=0;
-    int cursample = (int) csample;
-    float sf = csample - (float) cursample;
-
-    if(cursample-1 >= 0) s0 = (float) (samples[cursample-1] - 128);
-    s1 = (float) (samples[cursample] - 128);
-    if(cursample+1 < size) s2 = (float) (samples[cursample+1] - 128);
-
-    float val = s0*sf*(sf-1)/2 - s1*(sf*sf-1) + s2*(sf+1)*sf/2;
-    int32_t intval = (int32_t) (val * 256);
-    if(intval < -32768) intval = -32768;
-    else if(intval > 32767) intval = 32767;
-    return (int16_t) intval;
 }
 
 void SD_PrepareSound(int which)
@@ -209,79 +201,129 @@ void SD_PrepareSound(int which)
     byte *origsamples = PM_GetSound(page);
     if(origsamples + size >= PM_GetEnd())
         Quit("SD_PrepareSound(%i): Sound reaches out of page file!\n", which);
-
-    int destsamples = (int) ((float) size * (float) param_samplerate
-        / (float) ORIGSAMPLERATE);
-    //printf("snd(%d) bytes = %d\r\n", which, size);
-
-    /*byte *wavebuffer = (byte *) malloc(sizeof(headchunk) + sizeof(wavechunk)
-        + destsamples * 2);     // dest are 16-bit samples
-    if(wavebuffer == NULL)
-        Quit("Unable to allocate wave buffer for sound %i!\n", which);
-
-    headchunk head = {{'R','I','F','F'}, 0, {'W','A','V','E'},
-        {'f','m','t',' '}, 0x10, 0x0001, 1, param_samplerate, param_samplerate*2, 2, 16};
-    wavechunk dhead = {{'d', 'a', 't', 'a'}, destsamples*2};
-    head.filelenminus8 = sizeof(head) + destsamples*2;  // (sizeof(dhead)-8 = 0)
-    memcpy(wavebuffer, &head, sizeof(head));
-    memcpy(wavebuffer+sizeof(head), &dhead, sizeof(dhead));
-
-    // alignment is correct, as wavebuffer comes from malloc
-    // and sizeof(headchunk) % 4 == 0 and sizeof(wavechunk) % 4 == 0
-    int16_t *newsamples = (int16_t *)(void *) (wavebuffer + sizeof(headchunk)
-        + sizeof(wavechunk));
-    float cursample = 0.F;
-    float samplestep = (float) ORIGSAMPLERATE / (float) param_samplerate;
-    for(int i=0; i<destsamples; i++, cursample+=samplestep)
-    {
-        newsamples[i] = GetSample((float)size * (float)i / (float)destsamples,
-            origsamples, size);
-    }
-    SoundBuffers[which] = wavebuffer;*/
-
-    //SoundChunks[which] = Mix_LoadWAV_RW(SDL_RWFromMem(wavebuffer,
-        //sizeof(headchunk) + sizeof(wavechunk) + destsamples * 2), 1);
 }
 
-#define sndbuflen 256
-extern uint8_t sndbuf[2][sndbuflen];
-uint8_t *sndpagebuf = (uint8_t *) 0x38000000;
+// produce 4 samples of AdLib sound every interrupt
+#define ADLIB_IRQ_SAMPLES 4
+volatile int adlib_curr_sample = 0;
+volatile int16_t adlib_samples[DAC_BUF_LEN];
 
-int snd_size = 0;
-int snd_page = 0;
-int sndpagebufpos = 0;
-int snd_playing = 0;
+// Use Timer 7 to run 7042/3 ~= 2347 interrupts per second to produce 4 AdLib samples per interrupt.
+// Profiling shows that SDL_IMFMusicPlayer takes about 6000 CPU cycles to produce 1 sample, so
+// at the current rate of interrupts we have about 6000*4 = 24000 CPU cycles per interrupt, or
+// about 24000/480MHz = 50us per interrupt at 480MHz core clock which produces good results.
+//
+// TODO: Improve interrupt latency at lower frequencies such as 60MHz or 120MHz core clocks.
+//       AdLib emulation is somewhat taxing, and at e.g. 60MHz core clock we require 25ms to compute
+//       all 256 DAC samples (which fit in a 256/7042 ~= 0.036s = 36ms window to produce all the samples).
+//       So this may require the use of a different OPL emulator such as DosBox OPL/dbopl
+//       (more than twice as fast as fmopl from testing in Chocolate-Wolfenstein-3D on PC).
+void adlib_irq_setup(void)
+{
+    RCC->APB1LENR |= RCC_APB1LENR_TIM7EN;
 
+    NVIC_EnableIRQ(TIM7_IRQn);
+
+    TIM7->PSC = SystemD2Clock / 70420 - 1;
+    TIM7->ARR = 30 - 1;
+    TIM7->CR2 = 0b010 << TIM_CR2_MMS_Pos;
+    TIM7->CR1 = TIM_CR1_ARPE | TIM_CR1_URS;
+    TIM7->DIER |= TIM_DIER_UIE;
+    TIM7->CR1 |= TIM_CR1_CEN;
+}
+
+void TIM7_IRQHandler(void)
+{
+    NVIC_DisableIRQ(TIM7_IRQn);
+    TIM7->SR = 0;
+
+    if ((SoundMode == sdm_AdLib) || (MusicMode == smm_AdLib))
+    {
+        uint8_t music[ADLIB_IRQ_SAMPLES*4];
+        memset(music, 0, ADLIB_IRQ_SAMPLES*4);
+        SDL_IMFMusicPlayer(NULL, music, ADLIB_IRQ_SAMPLES*4);
+
+        for (int i = 0; i < ADLIB_IRQ_SAMPLES*4; i+=4)
+        {
+            int16_t left = ((uint16_t) music[i]) | (((uint16_t) music[i+1]) << 8);
+            int16_t right = ((uint16_t) music[i+2]) | (((uint16_t) music[i+3]) << 8);
+            adlib_samples[adlib_curr_sample + i/4] = (left + right) / (2 * 16);
+        }
+
+        adlib_curr_sample += ADLIB_IRQ_SAMPLES;
+
+        if (adlib_curr_sample == DAC_BUF_LEN)
+        {
+            adlib_curr_sample = 0;
+            TIM7->CR1 &= ~TIM_CR1_CEN;
+            return;
+        }
+    }
+
+    NVIC_EnableIRQ(TIM7_IRQn);
+}
+
+extern uint16_t dac_buf[2][DAC_BUF_LEN];
 void DMA1_Stream1_IRQHandler(void)
 {
     DMA1->LIFCR = 0xF40;
 
     uint32_t ct = (DMA1_Stream1->CR & DMA_SxCR_CT_Msk) >> DMA_SxCR_CT_Pos;
 
-    if (!snd_playing)
+    int16_t dac_mix[DAC_BUF_LEN];
+    memset(dac_mix, 0, DAC_BUF_LEN*sizeof(int16_t));
+
+    if ((SoundMode == sdm_AdLib) || (MusicMode == smm_AdLib))
     {
-        memset(sndbuf[1-ct], sndbuf[ct][sndbuflen-1], sndbuflen);
-        SCB_CleanDCache_by_Addr((uint32_t*)(((uint32_t)sndbuf[1-ct]) & ~(uint32_t)0x1F), sndbuflen + 32);
+        /*uint8_t music[DAC_BUF_LEN*4];
+        memset(music, 0, DAC_BUF_LEN*4);
+        SDL_IMFMusicPlayer(NULL, music, DAC_BUF_LEN*4);
+
+        for (int i = 0; i < DAC_BUF_LEN*4; i+=4)
+        {
+            int16_t left = ((uint16_t) music[i]) | (((uint16_t) music[i+1]) << 8);
+            int16_t right = ((uint16_t) music[i+2]) | (((uint16_t) music[i+3]) << 8);
+            dac_mix[i/4] = (left + right) / (2 * 16);
+        }*/
+        memcpy(dac_mix, adlib_samples, DAC_BUF_LEN*sizeof(uint16_t));
+        adlib_irq_setup();
     }
-    else
+
+    for (int ch = 0; ch < N_DIGICHANS; ch++)
     {
-        int sizetocopy = snd_size < sndbuflen ? snd_size : sndbuflen;
-
-        for (int i = 0; i < sizetocopy; i++)
+        if (DigiChan_Playing[ch])
         {
-            sndbuf[1-ct][i] = *(sndpagebuf+sndpagebufpos+i) / snd_scale;
-        }
+            // determine if this is the last group of bytes in the digi-sound
+            int sizetocopy = DigiChan_Size[ch] < DAC_BUF_LEN ? DigiChan_Size[ch] : DAC_BUF_LEN;
+            for (int i = 0; i < sizetocopy; i++)
+            {
+                dac_mix[i] += (((int16_t) DigiChan_PagePtr[ch][i] - 128) * 16) / DigiChan_PosScale[ch];
+            }
+            // continue last byte in sound to avoid popping from sharp transition
+            for (int i = sizetocopy; i < DAC_BUF_LEN; i++)
+            {
+                dac_mix[i] += (((int16_t) DigiChan_PagePtr[ch][sizetocopy-1] - 128) * 16) / DigiChan_PosScale[ch];
+            }
 
-        SCB_CleanDCache_by_Addr((uint32_t*)(((uint32_t)sndbuf[1-ct]) & ~(uint32_t)0x1F), sndbuflen + 32);
+            DigiChan_Size[ch] -= sizetocopy;
+            DigiChan_PagePtr[ch] += sizetocopy;
 
-        snd_size -= sizetocopy;
-        sndpagebufpos += sizetocopy;
-
-        if (snd_size <= 0)
-        {
-            snd_playing = 0;
+            if (DigiChan_Size[ch] <= 0)
+            {
+                DigiChan_Playing[ch] = 0;
+            }
         }
     }
+
+    // TODO: implement a better compressor/limiter than hard clipping once multi-channel sound is working
+    for (int i = 0; i < DAC_BUF_LEN; i++)
+    {
+        dac_mix[i] = dac_mix[i] > 2047 ? 2047 : dac_mix[i];
+        dac_mix[i] = dac_mix[i] < -2048 ? -2048 : dac_mix[i];
+        dac_buf[1-ct][i] = dac_mix[i] + 2048;
+    }
+
+    SCB_CleanDCache_by_Addr((uint32_t*)(((uint32_t)dac_buf[1-ct]) & ~(uint32_t)0x1F), DAC_BUF_LEN*sizeof(uint16_t) + 32);
 }
 
 int SD_PlayDigitized(word which,int leftpos,int rightpos)
@@ -293,6 +335,11 @@ int SD_PlayDigitized(word which,int leftpos,int rightpos)
         Quit("SD_PlayDigitized: bad sound number %i", which);
 
     int channel = SD_GetChannelForDigi(which);
+    if (channel >= N_DIGICHANS)
+    {
+        return 0;
+    }
+
     SD_SetPosition(channel, leftpos,rightpos);
 
     DigiPlaying = true;
@@ -300,33 +347,9 @@ int SD_PlayDigitized(word which,int leftpos,int rightpos)
     int page = DigiList[which].startpage;
     int size = DigiList[which].length;
 
-    snd_size = size;
-    snd_page = page;
-    uint8_t *tmp_sndpagebuf = sndpagebuf;
-    while (size >= 0)
-    {
-        uint8_t *tmp_page = PM_GetSound(page++);
-        memcpy(tmp_sndpagebuf, tmp_page, 4096);
-
-        tmp_sndpagebuf += 4096;
-        size -= 4096;
-    }
-    sndpagebufpos = 0;
-    snd_playing = 1;
-
-
-    //Mix_Chunk *sample = SoundChunks[which];
-    //if(sample == NULL)
-    //{
-    //    printf("SoundChunks[%i] is NULL!\n", which);
-    //    return 0;
-    //}
-
-    //if(Mix_PlayChannel(channel, sample, 0) == -1)
-    //{
-    //    printf("Unable to play sound: %s\n", Mix_GetError());
-    //    return 0;
-    //}
+    DigiChan_PagePtr[channel] = PM_GetSound(page);
+    DigiChan_Size[channel] = size;
+    DigiChan_Playing[channel] = 1;
 
     return channel;
 }
@@ -691,13 +714,13 @@ void SDL_IMFMusicPlayer(void *udata, uint8_t *stream, int len)
         {
             if(numreadysamples<sampleslen)
             {
-                //YM3812UpdateOne(0, stream16, numreadysamples);
+                YM3812UpdateOne(0, stream16, numreadysamples);
                 stream16 += numreadysamples*2;
                 sampleslen -= numreadysamples;
             }
             else
             {
-                //YM3812UpdateOne(0, stream16, sampleslen);
+                YM3812UpdateOne(0, stream16, sampleslen);
                 numreadysamples -= sampleslen;
                 return;
             }
@@ -781,22 +804,22 @@ SD_Startup(void)
 
     samplesPerMusicTick = param_samplerate / 700;    // SDL_t0FastAsmService played at 700Hz
 
-    //if(YM3812Init(1,3579545,param_samplerate))
-    //{
-    //    printf("Unable to create virtual OPL!!\n");
-    //}
+    if(YM3812Init(1,3579545,param_samplerate))
+    {
+        printf("Unable to create virtual OPL!!\n");
+    }
 
-    //for(i=1;i<0xf6;i++)
-    //    YM3812Write(0,i,0);
+    for(i=1;i<0xf6;i++)
+        YM3812Write(0,i,0);
 
-    //YM3812Write(0,1,0x20); // Set WSE=1
+    YM3812Write(0,1,0x20); // Set WSE=1
 //    YM3812Write(0,8,0); // Set CSM=0 & SEL=0       // already set in for statement
 
     //Mix_HookMusic(SDL_IMFMusicPlayer, 0);
     //Mix_ChannelFinished(SD_ChannelFinished);
 
     // TODO: implement AdLib support for music
-    AdLibPresent = false;
+    AdLibPresent = true;
     SoundBlasterPresent = true;
 
     alTimeCount = 0;
@@ -805,6 +828,9 @@ SD_Startup(void)
     SD_SetMusicMode(smm_Off);
 
     SDL_SetupDigi();
+
+    adlib_irq_setup();
+    dac_start();
 
     SD_Started = true;
 }

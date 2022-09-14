@@ -18,6 +18,7 @@
 
 #include <systick.h>
 #include <ltdc.h>
+#include <dac.h>
 
 
 

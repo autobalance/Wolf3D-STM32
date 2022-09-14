@@ -1,8 +1,7 @@
 #include <dac.h>
 
 // double buffered audio for the circular DMA
-#define SNDBUFLEN 256
-uint8_t sndbuf[2][SNDBUFLEN];
+volatile uint16_t dac_buf[2][DAC_BUF_LEN];
 
 // use TIMER6 to trigger a DMA transfer to the DAC
 void dac_timer6_setup(void)
@@ -26,15 +25,18 @@ void dac_dma1s1_setup(void)
     // request 68 corresponds to dac_ch2_dma
     DMAMUX1_Channel1->CCR |= 68 << DMAMUX_CxCR_DMAREQ_ID_Pos;
 
-    // circular buffer for DMA, with 8 bit sampling
-    DMA1_Stream1->M0AR = (unsigned int) sndbuf[0];
-    DMA1_Stream1->M1AR = (unsigned int) sndbuf[1];
-    DMA1_Stream1->PAR = (unsigned int) &(DAC1->DHR8R2);
-    DMA1_Stream1->NDTR = SNDBUFLEN;
+    // circular buffer for DMA, with 12 bit sampling
+    DMA1_Stream1->M0AR = (unsigned int) dac_buf[0];
+    DMA1_Stream1->M1AR = (unsigned int) dac_buf[1];
+    DMA1_Stream1->PAR = (unsigned int) &(DAC1->DHR12R2);
+    DMA1_Stream1->NDTR = DAC_BUF_LEN;
     DMA1_Stream1->CR = (0b11 << DMA_SxCR_PL_Pos) | DMA_SxCR_DBM;
-    DMA1_Stream1->CR |= (0b00 << DMA_SxCR_MSIZE_Pos) | (0b00 << DMA_SxCR_PSIZE_Pos);
+    DMA1_Stream1->CR |= (0b01 << DMA_SxCR_MSIZE_Pos) | (0b01 << DMA_SxCR_PSIZE_Pos);
     DMA1_Stream1->CR |= DMA_SxCR_MINC | (0b01 << DMA_SxCR_DIR_Pos) | DMA_SxCR_CIRC | DMA_SxCR_TCIE;
+}
 
+void dac_start(void)
+{
     NVIC_EnableIRQ(DMA1_Stream1_IRQn);
     DMA1_Stream1->CR |= DMA_SxCR_EN;
 }
