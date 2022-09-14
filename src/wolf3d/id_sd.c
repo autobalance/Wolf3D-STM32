@@ -109,9 +109,7 @@ static  int                     sqHackLen;
 static  int                     sqHackSeqLen;
 static  longword                sqHackTime;
 
-// TODO: Get multiple channels of digi-sounds working
-//       (a BusFault incurs somewhat randomly if we use more than 1 right now)
-#define N_DIGICHANS 1
+#define N_DIGICHANS 8
 
 volatile uint8_t *DigiChan_PagePtr[N_DIGICHANS];
 volatile int DigiChan_Size[N_DIGICHANS];
@@ -160,19 +158,15 @@ SD_StopDigitized(void)
     }
 }
 
-// TODO: Get multiple channels of digi-sounds working
-//       (a BusFault incurs somewhat randomly if we use more than 1 right now)
 int SD_GetChannelForDigi(int which)
 {
     // channel 0 and 1 are reserved for player weapon and boss weapon, respectively
-    /*if(DigiChannel[which] != -1) return DigiChannel[which];
+    if(DigiChannel[which] != -1) return DigiChannel[which];
 
     int DigiChan_OpenSlot = 1;
     while (++DigiChan_OpenSlot < N_DIGICHANS && DigiChan_Playing[DigiChan_OpenSlot]);
 
-    return DigiChan_OpenSlot;*/
-
-    return 0;
+    return DigiChan_OpenSlot;
 }
 
 void SD_SetPosition(int channel, int leftpos, int rightpos)
