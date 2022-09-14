@@ -671,7 +671,6 @@ void ShowArticle (char *article)
         }
         delay_ms(5);
 
-        LastScan = 0;
         ReadAnyControl(&ci);
         Direction dir = ci.dir;
         switch(dir)

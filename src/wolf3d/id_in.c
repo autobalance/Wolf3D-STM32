@@ -130,7 +130,12 @@ void INL_KeyService(int data)
     {
         if (!key_down)
         {
-            Keyboard[k] = false;
+            // Keyboard sends e0,f0,{sc_LShift, sc_RShift} if the sequence of 'hold shift key then press special key'
+            // is performed. This sequence shouldn't release the shift key, so bypass that case here.
+            if (!special || ((k != sc_LShift) && (k != sc_RShift)))
+            {
+                Keyboard[k] = false;
+            }
         }
         else
         {
