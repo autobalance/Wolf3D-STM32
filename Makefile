@@ -9,6 +9,12 @@ OBJS = $(addprefix $(BUILD_DIR)/, $(addsuffix .o,  $(basename $(SRCS))))
 SUS  = $(addprefix $(BUILD_DIR)/, $(addsuffix .su, $(basename $(SRCS))))
 TARGET = $(BUILD_DIR)/$(PROJECT)
 
+VSWAP = src/wolf3d/wl6/vswap.wl6
+VSWAP_LEN = $(shell du -bs $(VSWAP) | cut -f1)
+
+# placing the vswap file at 4MiB into the 8MiB QSPI flash
+VSWAP_ADDR = 0x90400000
+
 CROSS_COMPILE = arm-none-eabi-
 DEBUGGER = openocd
 OOCDCNF = openocd/devebox_stm32h743.cfg
@@ -28,6 +34,7 @@ CFLAGS += -Wall -Wextra -Wl,--gc-sections
 CFLAGS += -fno-common -ffunction-sections -fdata-sections -static
 CFLAGS += -DSTM32H743xx -DHSE_VALUE=25000000 -DCOMPILE_DATE=`date +%s`UL
 CFLAGS += -I$(SRC_DIR)/cmsis/inc -I$(SRC_DIR)/drivers -I$(SRC_DIR)/FatFS -I$(SRC_DIR)/wolf3d -I$(SRC_DIR)/
+CFLAGS += -DVSWAP_LEN=$(VSWAP_LEN) -DVSWAP_ADDR=$(VSWAP_ADDR)
 
 LDFLAGS += -march=armv7e-m -mthumb -mfloat-abi=hard -mfpu=fpv5-d16 -mabi=aapcs
 LDFLAGS += -lm -lgcc
@@ -77,6 +84,9 @@ flash: build
 
 flash_debug: build_debug
 	$(DEBUGGER) -f $(OOCDCNF) -c "program $(TARGET).elf verify reset exit"
+
+flash_vswap:
+	$(DEBUGGER) -f $(OOCDCNF) -c "program $(VSWAP) $(VSWAP_ADDR) verify reset exit"
 
 debug: build_debug flash_debug
 	$(DEBUGGER) -f $(OOCDCNF) &

@@ -1,8 +1,8 @@
 #ifndef __ID_PM__
 #define __ID_PM__
 
-extern const uint32_t VSWAP_LEN;
-extern const byte vswap[];
+//static const uint32_t VSWAP_LEN = 1545400;
+static const byte *vswap = (byte *) VSWAP_ADDR;
 
 #define PMPageSize 4096
 

@@ -1,8 +1,5 @@
 #include "wl_def.h"
 
-extern const uint32_t VSWAP_LEN;
-extern const byte vswap[];
-
 word ChunksInFile;
 word PMSpriteStart;
 word PMSoundStart;
